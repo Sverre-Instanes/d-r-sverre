@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DoorGuard Studio • Én-skjerm AI Sikkerhet</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+<style>
+:root {
+    --bg-canvas: #07090f;
+    --bg-panel: #101522;
+    --bg-card: #171e30;
+    --bg-input: #0b0f19;
+    --border: rgba(255, 255, 255, 0.11);
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --text: #f8fafc;
+    --text-dim: #94a3b8;
+    --accent: #818cf8;
+    --accent-btn: #6366f1;
+    --accent-btn-hover: #4f46e5;
+    --safe: #22c55e;
+    --safe-bg: rgba(34, 197, 94, 0.18);
+    --safe-border: rgba(34, 197, 94, 0.65);
+    --warn: #f59e0b;
+    --warn-bg: rgba(245, 158, 11, 0.18);
+    --warn-border: rgba(245, 158, 11, 0.65);
+    --danger: #ef4444;
+    --danger-bg: rgba(239, 68, 68, 0.22);
+    --danger-border: rgba(239, 68, 68, 0.75);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    background: var(--bg-canvas);
+    color: var(--text);
+}
+
+.app {
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: 46px 1fr;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 8px 14px 12px;
+    gap: 10px;
+}
+
+.topbar {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.brand-badge {
+    background: linear-gradient(135deg, #6366f1, #22d3ee);
+    color: #06080d;
+    font-weight: 900;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+
+.top-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 11px;
+}
+
+.dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #64748b;
+}
+
+.dot.on {
+    background: var(--safe);
+    box-shadow: 0 0 8px var(--safe);
+}
+
+.main-grid {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 12px;
+}
+
+.col-left, .col-right {
+    min-height: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.col-left {
+    grid-template-rows: 1fr auto;
+}
+
+.col-right {
+    grid-template-rows: auto 1fr auto;
+}
+
+.panel {
+    min-height: 0;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-title {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.camera-wrap {
+    flex: 1;
+    min-height: 0;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+}
+
+.camera-wrap canvas {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.placeholder {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 16px;
+}
+
+.btn-bar {
+    display: grid;
+    grid-template-columns: 1.4fr 0.8fr 0.8fr;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+button {
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.15s, border-color 0.15s;
+}
+
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn-start {
+    background: var(--accent-btn);
+}
+
+.btn-start:hover:not(:disabled) {
+    background: var(--accent-btn-hover);
+}
+
+.btn-sub {
+    background: var(--bg-card);
+    border-color: var(--border-strong);
+}
+
+.btn-sub:hover:not(:disabled) {
+    background: #232d47;
+}
+
+.hero-status {
+    border-radius: 10px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border-strong);
+    background: var(--bg-card);
+    transition: all 0.18s ease;
+}
+
+.hero-status.safe {
+    background: var(--safe-bg);
+    border-color: var(--safe-border);
+    box-shadow: 0 0 24px rgba(34, 197, 94, 0.14);
+}
+
+.hero-status.warn {
+    background: var(--warn-bg);
+    border-color: var(--warn-border);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.14);
+}
+
+.hero-status.danger {
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
+    box-shadow: 0 0 28px rgba(239, 68, 68, 0.22);
+}
+
+.hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.hero-headline {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.2px;
+}
+
+.hero-tag {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    white-space: nowrap;
+}
+
+.hero-sub {
+    font-size: 12px;
+    color: #e2e8f0;
+    margin-top: 5px;
+    opacity: 0.92;
+}
+
+.kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.kpi {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 9px;
+}
+
+.kpi-lbl {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+}
+
+.kpi-v {
+    font-size: 14px;
+    font-weight: 800;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.controls-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.slider-card {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.slider-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.slider-num {
+    color: #a5b4fc;
+    font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent-btn);
+    cursor: pointer;
+    height: 16px;
+}
+
+.check-row {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.check-row input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent-btn);
+    cursor: pointer;
+}
+
+.prob-list {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+}
+
+.prob-item {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 12px;
+}
+
+.prob-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+}
+
+.prob-name {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.prob-pct {
+    font-size: 17px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.track {
+    height: 12px;
+    background: #1a2236;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    transition: width 0.12s ease, background 0.15s ease;
+    background: var(--accent);
+}
+
+.fill.closed-bar {
+    background: linear-gradient(90deg, #16a34a, #4ade80);
+}
+
+.fill.open-bar {
+    background: linear-gradient(90deg, #dc2626, #f87171);
+}
+
+.log-compact {
+    max-height: 76px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.log-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+}
+
+.log-t {
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+@media (max-width: 920px) {
+    html, body {
+        overflow: auto;
+        height: auto;
+    }
+    .app {
+        height: auto;
+        min-height: 100dvh;
+    }
+    .main-grid, .col-left, .col-right {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+    .camera-wrap {
+        min-height: 240px;
+    }
+}
+</style>
+</head>
+<body>
+<div class="app">
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-badge">DG PRO</span>
+            <span>DørSikkerhet • Én Skjerm</span>
+        </div>
+        <div class="top-right">
+            <span id="fps-text">0 FPS</span>
+            <span class="live-pill">
+                <span class="dot" id="live-dot"></span>
+                <span id="live-status">Frakoblet</span>
+            </span>
+        </div>
+    </header>
+
+    <div class="main-grid">
+        <!-- VENSTRE: KAMERA + KLASSEPROSENT -->
+        <div class="col-left">
+            <section class="panel">
+                <div class="panel-title">
+                    <span>Live Kamera</span>
+                    <span id="cam-hint">Venter på start</span>
+                </div>
+                <div class="camera-wrap" id="webcam-container">
+                    <div class="placeholder" id="placeholder">
+                        Klikk <strong>Start deteksjon</strong> for å åpne kameraet.
+                    </div>
+                </div>
+                <div class="btn-bar">
+                    <button type="button" class="btn-start" id="start-btn" onclick="init()">Start deteksjon</button>
+                    <button type="button" class="btn-sub" id="pause-btn" onclick="togglePause()" disabled>Pause</button>
+                    <button type="button" class="btn-sub" id="sound-btn" onclick="toggleSound()">Lyd: Av</button>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title">
+                    <span>Klasse-sannsynlighet</span>
+                    <span>Glattet (EMA)</span>
+                </div>
+                <div class="prob-list" id="label-container">
+                    <div class="placeholder">Ingen målinger ennå.</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- HØYRE: SIKKERHETSSTATUS + INNSTILLINGER + LOGG -->
+        <div class="col-right">
+            <section class="panel">
+                <div class="panel-title">
+                    <span>Sikkerhetsvurdering</span>
+                    <span id="algo-badge-txt">Klar</span>
+                </div>
+
+                <div class="hero-status" id="hero-status">
+                    <div class="hero-top">
+                        <div class="hero-headline" id="hero-headline">Ingen status ennå</div>
+                        <span class="hero-tag" id="hero-tag">VENTER</span>
+                    </div>
+                    <div class="hero-sub" id="hero-sub">
+                        Start kameraet for å vurdere om døren er sikker eller usikker.
+                    </div>
+                </div>
+
+                <div class="kpi-strip">
+                    <div class="kpi">
+                        <div class="kpi-lbl">Tilstand</div>
+                        <div class="kpi-v" id="kpi-state">—</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-lbl">Stabilitet</div>
+                        <div class="kpi-v" id="kpi-streak">0 / 5</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-lbl">Margin</div>
+                        <div class="kpi-v" id="kpi-margin">0.0%</div>
+                    </div>
+                </div>
+
+                <div class="controls-box">
+                    <div class="slider-card">
+                        <div class="slider-top">
+                            <label for="threshold-slider">Sikkerhetsterskel</label>
+                            <span class="slider-num" id="threshold-val">80%</span>
+                        </div>
+                        <input type="range" id="threshold-slider" min="30" max="98" value="80" oninput="syncLabels()">
+                    </div>
+
+                    <div class="slider-card">
+                        <div class="slider-top">
+                            <label for="stability-slider">Krav til treff</label>
+                            <span class="slider-num" id="stability-val">5 runder</span>
+                        </div>
+                        <input type="range" id="stability-slider" min="2" max="12" value="5" oninput="syncLabels()">
+                    </div>
+
+                    <div class="check-row">
+                        <label for="open-unsafe">Åpen dør = Usikker (varsel)</label>
+                        <input type="checkbox" id="open-unsafe" checked>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title">
+                    <span>Regelverk for sikkerhet</span>
+                    <span>Aktiv algoritme</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-dim);line-height:1.55;">
+                    • <strong>SIKKER:</strong> Lukket dør over terskel med minst 15% forsprang over åpen dør, bekreftet over valgt antall runder.<br>
+                    • <strong>USIKKER:</strong> Åpen dør over terskel (når varsel er på), for lav sikkerhet, eller for liten forskjell mellom klassene.
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title">
+                    <span>Siste hendelser</span>
+                    <button type="button" class="btn-sub" style="padding:3px 8px;font-size:11px;" onclick="clearLog()">Tøm</button>
+                </div>
+                <div class="log-compact" id="event-log">
+                    <div class="log-line"><span style="color:var(--text-dim)">Ingen hendelser logget ennå.</span></div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<script>
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/zPefP_Iz7/";
+const EMA_ALPHA = 0.35;
+const MIN_MARGIN = 0.15;
+
+let model, webcam, maxPredictions;
+let isRunning = false;
+let isPaused = false;
+let soundEnabled = false;
+let audioCtx = null;
+
+let smoothedProbs = [];
+let streakCount = 0;
+let candidateState = "UNKNOWN";
+let confirmedState = "UNKNOWN";
+let lastLoggedKey = "";
+let lastFrameTime = performance.now();
+let fpsSmooth = 0;
+
+function syncLabels() {
+    document.getElementById("threshold-val").textContent =
+        document.getElementById("threshold-slider").value + "%";
+    document.getElementById("stability-val").textContent =
+        document.getElementById("stability-slider").value + " runder";
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.getElementById("sound-btn").textContent = soundEnabled ? "Lyd: På" : "Lyd: Av";
+    if (soundEnabled && !audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+function beep(freq = 780) {
+    if (!soundEnabled) return;
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.16);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.16);
+}
+
+function togglePause() {
+    if (!isRunning) return;
+    isPaused = !isPaused;
+    document.getElementById("pause-btn").textContent = isPaused ? "Fortsett" : "Pause";
+    document.getElementById("live-status").textContent = isPaused ? "Pause" : "Live";
+    if (!isPaused) {
+        lastFrameTime = performance.now();
+        window.requestAnimationFrame(loop);
+    }
+}
+
+function pushLog(text, color = "#e2e8f0") {
+    const log = document.getElementById("event-log");
+    if (log.textContent.includes("Ingen hendelser logget ennå")) {
+        log.innerHTML = "";
+    }
+    const t = new Date().toTimeString().slice(0, 8);
+    const div = document.createElement("div");
+    div.className = "log-line";
+    div.innerHTML = `<span style="color:${color};font-weight:600">${text}</span><span class="log-t">${t}</span>`;
+    log.prepend(div);
+}
+
+function clearLog() {
+    document.getElementById("event-log").innerHTML =
+        `<div class="log-line"><span style="color:var(--text-dim)">Loggen er tømt.</span></div>`;
+    lastLoggedKey = "";
+}
+
+function createProbCards() {
+    const container = document.getElementById("label-container");
+    container.innerHTML = "";
+    smoothedProbs = new Array(maxPredictions).fill(null);
+
+    for (let i = 0; i < maxPredictions; i++) {
+        const card = document.createElement("div");
+        card.className = "prob-item";
+        card.innerHTML = `
+            <div class="prob-head">
+                <span class="prob-name" id="pname-${i}">Klasse ${i + 1}</span>
+                <span class="prob-pct" id="ppct-${i}">0.0%</span>
+            </div>
+            <div class="track">
+                <div class="fill" id="pbar-${i}"></div>
+            </div>
+        `;
+        container.appendChild(card);
+    }
+}
+
+async function init() {
+    if (isRunning) return;
+    const btn = document.getElementById("start-btn");
+    btn.disabled = true;
+    btn.textContent = "Laster...";
+
+    try {
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        maxPredictions = model.getTotalClasses();
+
+        webcam = new tmImage.Webcam(320, 240, true);
+        await webcam.setup();
+        await webcam.play();
+
+        document.getElementById("placeholder").remove();
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        document.getElementById("live-dot").classList.add("on");
+        document.getElementById("live-status").textContent = "Live";
+        document.getElementById("cam-hint").textContent = "Kamera aktivt";
+        btn.textContent = "Kjører";
+        document.getElementById("pause-btn").disabled = false;
+
+        isRunning = true;
+        createProbCards();
+        lastFrameTime = performance.now();
+        window.requestAnimationFrame(loop);
+    } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "Prøv igjen";
+        document.getElementById("live-status").textContent = "Feil";
+    }
+}
+
+async function loop(now = performance.now()) {
+    if (!isRunning || isPaused) return;
+
+    const dt = Math.max(now - lastFrameTime, 1);
+    lastFrameTime = now;
+    const instFps = 1000 / dt;
+    fpsSmooth = fpsSmooth === 0 ? instFps : fpsSmooth * 0.85 + instFps * 0.15;
+    document.getElementById("fps-text").textContent = Math.round(fpsSmooth) + " FPS";
+
+    webcam.update();
+    await predict();
+    window.requestAnimationFrame(loop);
+}
+
+function evaluateSecurity(items) {
+    const threshold = Number(document.getElementById("threshold-slider").value) / 100;
+    const reqStreak = Number(document.getElementById("stability-slider").value);
+    const openIsUnsafe = document.getElementById("open-unsafe").checked;
+
+    let openProb = 0;
+    let closedProb = 0;
+
+    for (const it of items) {
+        const low = it.className.toLowerCase();
+        if (low.includes("åpen") || low.includes("apen") || low.includes("open")) {
+            openProb = Math.max(openProb, it.prob);
+        } else if (low.includes("lukket") || low.includes("stengt") || low.includes("closed")) {
+            closedProb = Math.max(closedProb, it.prob);
+        }
+    }
+
+    const margin = Math.abs(openProb - closedProb);
+    const clearMargin = margin >= MIN_MARGIN;
+
+    let rawState = "UNCERTAIN";
+    if (openProb >= threshold && openProb > closedProb && clearMargin) {
+        rawState = "OPEN";
+    } else if (closedProb >= threshold && closedProb > openProb && clearMargin) {
+        rawState = "CLOSED";
+    }
+
+    if (rawState === candidateState) {
+        streakCount = Math.min(streakCount + 1, reqStreak);
+    } else {
+        candidateState = rawState;
+        streakCount = 1;
+    }
+
+    const stable = streakCount >= reqStreak;
+    if (stable) confirmedState = rawState;
+
+    const hero = document.getElementById("hero-status");
+    const headline = document.getElementById("hero-headline");
+    const tag = document.getElementById("hero-tag");
+    const sub = document.getElementById("hero-sub");
+    const badge = document.getElementById("algo-badge-txt");
+
+    document.getElementById("kpi-state").textContent =
+        confirmedState === "OPEN" ? "Åpen" : confirmedState === "CLOSED" ? "Lukket" : "Uavklart";
+    document.getElementById("kpi-streak").textContent = `${streakCount} / ${reqStreak}`;
+    document.getElementById("kpi-margin").textContent = `${(margin * 100).toFixed(1)}%`;
+
+    hero.classList.remove("safe", "warn", "danger");
+
+    let mode = "warn";
+    let key = "UNCERTAIN";
+
+    if (confirmedState === "CLOSED" && stable) {
+        mode = "safe";
+        key = "SAFE_CLOSED";
+        headline.textContent = "Døren er sikker";
+        tag.textContent = "SIKKER • LUKKET";
+        badge.textContent = "Sikker";
+        sub.textContent =
+            `Lukket ${(closedProb * 100).toFixed(1)}% (terskel ${Math.round(threshold * 100)}%, margin ${(margin * 100).toFixed(1)}%).`;
+    } else if (confirmedState === "OPEN" && stable && openIsUnsafe) {
+        mode = "danger";
+        key = "UNSAFE_OPEN";
+        headline.textContent = "Ikke sikker — dør åpen";
+        tag.textContent = "USIKKER • ÅPEN";
+        badge.textContent = "Varsel";
+        sub.textContent =
+            `Åpen ${(openProb * 100).toFixed(1)}% over terskel ${Math.round(threshold * 100)}% i ${reqStreak} runder.`;
+    } else if (confirmedState === "OPEN" && stable && !openIsUnsafe) {
+        mode = "warn";
+        key = "INFO_OPEN";
+        headline.textContent = "Døren er åpen";
+        tag.textContent = "ÅPEN";
+        badge.textContent = "Åpen";
+        sub.textContent =
+            `Åpen ${(openProb * 100).toFixed(1)}% bekreftet over ${reqStreak} runder.`;
+    } else {
+        mode = "warn";
+        key = "UNSAFE_UNCERTAIN";
+        headline.textContent = "Ikke bekreftet sikker";
+        tag.textContent = "USIKKER";
+        badge.textContent = "Vurderer";
+        sub.textContent =
+            `Lukket ${(closedProb * 100).toFixed(1)}% vs Åpen ${(openProb * 100).toFixed(1)}% • Krever ${Math.round(threshold * 100)}% terskel, ≥15% margin og ${reqStreak} treff.`;
+    }
+
+    hero.classList.add(mode);
+
+    if (stable && key !== lastLoggedKey) {
+        lastLoggedKey = key;
+        const cMap = { safe: "#4ade80", warn: "#fbbf24", danger: "#f87171" };
+        pushLog(`${tag.textContent}: ${headline.textContent}`, cMap[mode]);
+        if (mode === "danger") beep(840);
+        else if (mode === "warn") beep(520);
+    }
+}
+
+async function predict() {
+    const raw = await model.predict(webcam.canvas);
+    const items = [];
+
+    for (let i = 0; i < maxPredictions; i++) {
+        const p = raw[i];
+        const prev = smoothedProbs[i] === null ? p.probability : smoothedProbs[i];
+        const smooth = EMA_ALPHA * p.probability + (1 - EMA_ALPHA) * prev;
+        smoothedProbs[i] = smooth;
+
+        const pct = (smooth * 100).toFixed(1);
+        document.getElementById(`pname-${i}`).textContent = p.className;
+        document.getElementById(`ppct-${i}`).textContent = pct + "%";
+
+        const bar = document.getElementById(`pbar-${i}`);
+        bar.style.width = pct + "%";
+
+        const low = p.className.toLowerCase();
+        bar.classList.remove("closed-bar", "open-bar");
+        if (low.includes("lukket") || low.includes("stengt") || low.includes("closed")) {
+            bar.classList.add("closed-bar");
+        } else if (low.includes("åpen") || low.includes("apen") || low.includes("open")) {
+            bar.classList.add("open-bar");
+        }
+
+        items.push({ className: p.className, prob: smooth });
+    }
+
+    evaluateSecurity(items);
+}
+</script>
+</body>
+</html>
